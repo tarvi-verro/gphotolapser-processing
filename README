@@ -1,0 +1,37 @@
+This is a repository for processing the sequence of images produced by
+gphotolapser into a sequence of images that produce a smooth movie.
+
+The problems that this tool aims to address are as follows:
+
+ - Blend together any extra images captured per cycle (see extras_per_cycle).
+ - Highlight any missing frames.
+ - Extrapolate to target luminance to smooth out flickering.
+
+Compiling
+=========
+
+First grab the Haskell compiler ghc from your distribution, after which
+producing the executable should be as simple as running:
+
+	$ make
+
+in the gphotolapser-processing directory.
+
+Additionally, the programs exiv2 and imagemagick are needed to execute the
+processing recipe.
+
+Usage
+=====
+
+The gphotolapser-processing program's functionality is limited to reading the
+exiv data from the images in the sequence and prints out a list of shell
+commands, a recipe if you will, that will produce the desired image series.
+
+A typical use case looks as follows:
+
+	$ cd timelapse-images
+	$ .../gph-process > process.sh
+	$ mkdir out
+	$ sh process.sh
+
+
