@@ -4,34 +4,55 @@ gphotolapser into a sequence of images that produce a smooth movie.
 The problems that this tool aims to address are as follows:
 
  - Blend together any extra images captured per cycle (see extras_per_cycle).
- - Highlight any missing frames.
- - Extrapolate to target luminance to smooth out flickering.
+ - Highlight any missing frames (not yet implemented).
+ - Smooth out flickering caused by steps between camera settings.
 
 Compiling
 =========
 
 First grab the Haskell compiler ghc from your distribution, after which
-producing the executable should be as simple as running:
+producing the executable gph-process should be as simple as running:
 
 	$ make
 
 in the gphotolapser-processing directory.
 
-Additionally, the programs exiv2 and imagemagick are needed to execute the
-processing recipe.
+Additionally, the programs exiv2, gegl and imagemagick are needed for running
+the program and the recipes it lists.
+
+Overview
+========
+
+This program reads the list of '*.JPG' images in the current directory and
+prints out a list of bash commands (a recipe) that, when run, will generate
+the processed set of images in an output subdirectory.
+
+There are two processing steps available:
+
+ - blend: Merges the multiple photos captured per gphotolapser cycle. If only 
+   a single frame was captured, an output symbolic link will be generated
+   instead.
+
+ - smooth: Smooths out any jumps in picture brightness caused from stepping
+   between camera settings (ISO, aperture, exposure).
 
 Usage
 =====
 
-The gphotolapser-processing program's functionality is limited to reading the
-exiv data from the images in the sequence and prints out a list of shell
-commands, a recipe if you will, that will produce the desired image series.
-
 A typical use case looks as follows:
 
 	$ cd timelapse-images
-	$ .../gph-process > process.sh
-	$ mkdir out
+	$ .../gph-process blend > process-blend.sh
+	$ sh process-blend.sh
+
+	$ cd out-blended
+	$ .../../gph-process smooth > process-smooth.sh
 	$ sh process.sh
 
+The directory timelapse-images/out-blended/out-smoothed should now contain the
+output series of images.
+
+NB! To compile the image series to a movie:
+
+	$ ffmpeg -f image2 -start_number 1 -i %4d.JPG -r 25 -s 1280x800 out.mp4
 
