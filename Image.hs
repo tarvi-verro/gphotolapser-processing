@@ -1,17 +1,29 @@
-module Image (ImageInfo (ImageInfo, fileName, luminanceTarget, cycleRefTime, triggerStartTime, fNumber, isoSpeed, exposureTime), getImageInfo, imgInfos) where
+module Image( ImageInfo(ImageInfo, fileName, fNumber, isoSpeed, exposureTime, gphInfo)
+            , GPHInfo (GPHInfo, luminanceTarget, cycleRefTime, triggerStartTime, bulbInfo)
+            , BulbInfo (BulbInfo, bulbHoldTime, bulbLag)
+            , getImageInfo, imgInfos
+            ) where
 
 import Data.Function (on)
 import System.Process (readProcess)
 import Data.List (isSuffixOf, isPrefixOf, break)
 import Data.Maybe (catMaybes)
 
+data BulbInfo = BulbInfo { bulbHoldTime :: Double
+                         , bulbLag :: Double
+                         } deriving (Show)
+
+data GPHInfo = GPHInfo { luminanceTarget :: Double
+                       , cycleRefTime :: Double
+                       , triggerStartTime :: Double
+                       , bulbInfo :: Maybe BulbInfo
+                       } deriving (Show)
+
 data ImageInfo = ImageInfo { fileName :: String
-                           , luminanceTarget :: Double
-                           , cycleRefTime :: Double
-                           , triggerStartTime :: Double
                            , fNumber :: Double
                            , isoSpeed :: Double
                            , exposureTime :: Double
+                           , gphInfo :: Maybe GPHInfo
                            } deriving (Show)
 
 imgListing :: String -> [String]
@@ -21,19 +33,26 @@ readExiv2 :: String -> IO (String, String)
 readExiv2 fs = (\rs -> (fs,rs)) <$> readProcess "exiv2" ["-p", "a", "-g", regx, fs] [] where
     regx = "^Xmp\\.xmp\\.GPhotolapser\\.\\|^Exif\\.Photo\\."
 
+fixExposureTime :: ImageInfo -> ImageInfo
+fixExposureTime ii@ImageInfo{gphInfo = Just GPHInfo{bulbInfo = Just BulbInfo{bulbHoldTime=t,bulbLag=lag}}}
+                = ii {exposureTime = t - lag}
+fixExposureTime ii = ii
+
 parseExiv2 :: (String, String) -> Maybe ImageInfo
-parseExiv2 (fs, es) = toData <$> unwrap where
-    toData (lumi, reft, tst, fnr, iso, et) = ImageInfo {
-            fileName = fs, luminanceTarget = lumi, cycleRefTime = reft, triggerStartTime = tst,
-            fNumber = fnr, isoSpeed = iso, exposureTime = et }
-    unwrap = case map getVal ids of
-            [Just a, Just b, Just c, Just bht, Just bl, Just d, Just e, Just f] -> Just (a,b,c,d,e,bht - bl)
-            [Just a, Just b, Just c, Nothing, Nothing, Just d, Just e, Just f] -> Just (a,b,c,d,e,f)
-            otherwise -> Nothing
+parseExiv2 (fs, es) = unwrap $ map getVal ids where
+    unwrap (Just a : Just b : Just c : gphs)
+             = Just ImageInfo{fileName = fs, fNumber = a, isoSpeed = b, exposureTime = c, gphInfo = unwrapGPH gphs}
+    unwrap _ = Nothing
+    unwrapGPH (Just a : Just b : Just c : bulbs)
+                = Just GPHInfo{luminanceTarget = a, cycleRefTime = b, triggerStartTime = c, bulbInfo = unwrapBulb bulbs}
+    unwrapGPH _ = Nothing
+    unwrapBulb [Just a, Just b]
+                 = Just BulbInfo{bulbHoldTime = a, bulbLag = b}
+    unwrapBulb _ = Nothing
     ids = [
+           "Exif.Photo.FNumber", "Exif.Photo.ISOSpeedRatings", "Exif.Photo.ExposureTime",
            "Xmp.xmp.GPhotolapser.LuminanceTarget", "Xmp.xmp.GPhotolapser.CycleRefTime", "Xmp.xmp.GPhotolapser.TriggerStartTime",
-           "Xmp.xmp.GPhotolapser.BulbHoldTime", "Xmp.xmp.GPhotolapser.BulbLag",
-           "Exif.Photo.FNumber", "Exif.Photo.ISOSpeedRatings", "Exif.Photo.ExposureTime"
+           "Xmp.xmp.GPhotolapser.BulbHoldTime", "Xmp.xmp.GPhotolapser.BulbLag"
           ]
     getVal id = case filter ((==) id . head) ys of
             [[_,_,_,'F' : val]] -> Just $ (read :: String -> Double) $ val
@@ -49,7 +68,7 @@ parseValFraction v = case break (=='/') v of
 ls = readProcess "ls" [] []
 
 getImageInfo :: String -> IO (Maybe ImageInfo)
-getImageInfo = fmap parseExiv2 . readExiv2
+getImageInfo = fmap (fmap fixExposureTime . parseExiv2) . readExiv2
 
 imgInfos :: IO [ImageInfo]
 imgInfos = imgListing <$> ls >>= fmap catMaybes . mapM getImageInfo

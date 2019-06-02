@@ -6,19 +6,25 @@ import Data.Function (on)
 import Data.List (groupBy, concatMap)
 import Data.Fixed (mod')
 import Text.Printf (printf)
+import Data.Maybe (mapMaybe)
 
 
 groupRuns :: [ImageInfo] -> [[ImageInfo]]
-groupRuns = groupBy ((==) `on` cycleRefTime)
+groupRuns = map (map snd) . groupBy ((==) `on` (cycleRefTime . fst)) . getGPHs
 
-getRunCycleLength :: [ImageInfo] -> Double
+getRunCycleLength :: [GPHInfo] -> Double
 getRunCycleLength = df . map head . groupBy ((==) `on` luminanceTarget) where
-    df (ImageInfo {triggerStartTime=a} : ImageInfo {triggerStartTime=b} : _) = b - a
+    df (GPHInfo {triggerStartTime=a} : GPHInfo {triggerStartTime=b} : _) = b - a
     df x = error $ show x
 
-getRunAvgGroups run = groupBy ((<) `on` relStartTime) run where
+getGPHs :: [ImageInfo] -> [(GPHInfo, ImageInfo)]
+getGPHs = mapMaybe (\ii -> (\g -> (g,ii)) <$> gphInfo ii)
+
+getRunAvgGroups :: [ImageInfo] -> [[ImageInfo]]
+getRunAvgGroups run = map (map  snd) $ groupBy ((<) `on` (relStartTime . fst)) gphs where
     relStartTime x = (triggerStartTime x - cycleRefTime x) `mod'` rcl
-    rcl = getRunCycleLength run
+    gphs = getGPHs run
+    rcl = getRunCycleLength $ map fst gphs
 
 lumiOffsetsCalculate :: [(Int, ImageInfo)] -> [(Int, Double, ImageInfo)]
 lumiOffsetsCalculate ps = map loc [0 .. ((length ps) - 1)] where
