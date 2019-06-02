@@ -38,8 +38,7 @@ getBlendCommands = map cmd . zip [1..] . concatMap getRunAvgGroups where
 
 getSmoothCommands :: [ImageInfo] -> [[String]]
 getSmoothCommands = map geglcmd . lumiOffsetsCalculate . zip [1..] where
-    geglcmd (n, o, i) = ["gegl", avgp n, "--", "gegl:exposure", "exposure=" ++ show o, "gegl:jpg-save", "quality=98", "path=" ++ outn n]
+    geglcmd (n, o, i) = ["gegl", fileName i, "--", "gegl:exposure", "exposure=" ++ show o, "gegl:jpg-save", "quality=98", "path=" ++ outn n]
     outn n = "out-smoothed/" ++ prnt n ++ ".JPG"
-    avgp n = "./" ++ prnt n ++ ".JPG"
     prnt = printf "%04d" :: Int -> String
 
